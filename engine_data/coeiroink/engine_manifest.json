@@ -9,7 +9,7 @@
   "icon": "icon.local.png",
   "default_sampling_rate": 24000,
   "downloadable_libraries_path": null,
-  "downloadable_libraries_url": null,
+  "downloadable_libraries_url": "/download_infos",
   "supported_features": {
     "adjust_mora_pitch": {
       "type": "bool",
