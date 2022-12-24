@@ -24,6 +24,7 @@ jobs:
         shell: bash
         run: |
           sed -i -e "s/VERSION = \"0.0.0\"/VERSION = \"${{ github.event.inputs.version }}\"/g" ./main.ts
+          sed -i -e "s/!version!/${{ github.event.inputs.version }}/g" ./build_resources/README.txt
 
       - name: Setup deno
         uses: denoland/setup-deno@v1
