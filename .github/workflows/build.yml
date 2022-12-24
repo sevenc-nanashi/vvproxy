@@ -56,7 +56,7 @@ jobs:
 
           cat > description.txt << EOS
 
-          使い方は、ZIPを解凍したら出てくる`README.txt`を参照して下さい。
+          使い方は、ZIPを解凍したら出てくる\`README.txt\`を参照して下さい。
 
           ----
 
