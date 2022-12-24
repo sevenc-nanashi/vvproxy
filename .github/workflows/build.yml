@@ -88,10 +88,16 @@ jobs:
           fi
 
       - name: Build zip
-        shell: bash
+        shell: pwsh
         run: |
           cp ./build_resources/README.txt ./README.txt
-          zip -r itvoice-${{ steps.version.outputs.version }}.zip ./README.txt ./itvoice.exe ./engine_data
+          Compress-Archive
+            -DestinationPath itvoice-${{ steps.version.outputs.version }}.zip
+            -Path @(
+              './README.txt',
+              './itvoice.exe',
+              './engine_data'
+            )
 
       - name: Upload release
         uses: softprops/action-gh-release@v1
