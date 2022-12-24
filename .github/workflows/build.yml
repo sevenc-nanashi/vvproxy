@@ -91,14 +91,13 @@ jobs:
       - name: Build zip
         shell: pwsh
         run: |
-          cp ./build_resources/README.txt ./README.txt
+          New-Item vvproxy -ItemType Directory
+          Copy-Item ./build_resources/README.txt ./vvproxy/
+          Copy-Item ./vvproxy.exe ./vvproxy/
+          Copy-Item -Recurse ./engine_data ./vvproxy/
           Compress-Archive `
             -DestinationPath vvproxy-${{ steps.version.outputs.version }}.zip `
-            -Path @(
-              './README.txt',
-              './vvproxy.exe',
-              './engine_data'
-            )
+            -Path "./vvproxy"
 
       - name: Upload release
         uses: softprops/action-gh-release@v1
