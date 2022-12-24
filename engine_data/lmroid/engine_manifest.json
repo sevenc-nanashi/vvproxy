@@ -1,0 +1,50 @@
+{
+  "manifest_version": "0.13.0",
+  "name": "Lmroid",
+  "uuid": "be2f077d-283d-4c81-8edf-bfca8f1866a0",
+  "version": "999.999.999",
+  "url": "https://lmroidsoftware.wixsite.com/nhoshio",
+  "command": "../../vvproxy lmroid",
+  "port": 50073,
+  "icon": "icon.local.png",
+  "default_sampling_rate": 48000,
+  "downloadable_libraries_path": null,
+  "downloadable_libraries_url": null,
+  "supported_features": {
+    "adjust_mora_pitch": {
+      "type": "bool",
+      "value": false,
+      "name": "モーラごとの音高の調整"
+    },
+    "adjust_phoneme_length": {
+      "type": "bool",
+      "value": false,
+      "name": "音素ごとの長さの調整"
+    },
+    "adjust_speed_scale": {
+      "type": "bool",
+      "value": false,
+      "name": "全体の話速の調整"
+    },
+    "adjust_pitch_scale": {
+      "type": "bool",
+      "value": false,
+      "name": "全体の音高の調整"
+    },
+    "adjust_intonation_scale": {
+      "type": "bool",
+      "value": false,
+      "name": "全体の抑揚の調整"
+    },
+    "adjust_volume_scale": {
+      "type": "bool",
+      "value": false,
+      "name": "全体の音量の調整"
+    },
+    "interrogative_upspeak": {
+      "type": "bool",
+      "value": false,
+      "name": "疑問文の自動調整"
+    }
+  }
+}

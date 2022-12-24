@@ -1,0 +1,22 @@
+lmroid:
+  port: 50073
+  orig_port: 50072
+  name: LMROID
+  run_path: ../lmroid/run.exe
+  argv: []
+  gpu: false
+
+coeiroink:
+  port: 50032
+  orig_port: 50031
+  name: COEIROINK
+  run_path: ../coeiroink/run.exe
+  argv: []
+
+itvoice:
+  port: 49540
+  orig_port: 49541
+  name: ITVOICE
+  run_path: ../ITVOICE-v1.0.1/run.exe
+  argv: []
+  gpu: false

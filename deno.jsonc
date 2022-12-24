@@ -1,0 +1,5 @@
+{
+  "tasks": {
+    "compile": "deno compile --allow-read --allow-run --allow-env --allow-net -o vvproxy.exe main.ts"
+  }
+}
