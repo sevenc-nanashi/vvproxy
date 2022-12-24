@@ -92,7 +92,7 @@ jobs:
         run: |
           cp ./build_resources/README.txt ./README.txt
           Compress-Archive `
-            -DestinationPath itvoice-${{ steps.version.outputs.version }}.zip `
+            -DestinationPath vvproxy-${{ steps.version.outputs.version }}.zip `
             -Path @(
               './README.txt',
               './vvproxy.exe',
