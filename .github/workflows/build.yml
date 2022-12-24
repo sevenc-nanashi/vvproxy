@@ -95,7 +95,7 @@ jobs:
             -DestinationPath itvoice-${{ steps.version.outputs.version }}.zip `
             -Path @(
               './README.txt',
-              './itvoice.exe',
+              './vvproxy.exe',
               './engine_data'
             )
 
