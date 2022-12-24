@@ -1,0 +1,103 @@
+name: Build
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: バージョン
+        required: true
+      description:
+        description: 説明
+        required: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Replace version
+        shell: bash
+        run: |
+          sed -i -e "s/VERSION = \"0.0.0\"/VERSION = \"${{ github.event.inputs.version }}\"/g" ./main.ts
+
+      - name: Setup deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v1.29.1
+
+      - name: Build exe
+        shell: bash
+        run: |
+          deno task compile
+
+      - name: Setup resources
+        id: version
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}" # "
+          else
+            RAW_VERSION="${{ github.ref_name }}" # "
+            VERSION=${RAW_VERSION#v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [[ $VERSION == *"-"* ]]; then
+            PREVIEW=true
+          else
+            PREVIEW=false
+          fi
+          echo "preview=$PREVIEW" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION, is preview: $PREVIEW"
+
+          cat > description.txt << EOS
+
+          使い方は、ZIPを解凍したら出てくる`README.txt`を参照して下さい。
+
+          ----
+
+          <details>
+          <summary>コミットログ</summary>
+
+          EOS
+
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            LAST_VERSION=$(git tag -l --sort=-creatordate | sed "/.*-preview.*/d" | sed -n "1p")
+          else
+            LAST_VERSION=$(git tag -l --sort=-creatordate | sed "/.*-preview.*/d"| sed -n "2p")
+          fi
+          git log $LAST_VERSION...HEAD --pretty=format:"- %s" | head -n -1 >> description.txt
+
+          cat >> description.txt << EOS
+
+          </details>
+
+          EOS
+
+          if [ -n "${{ github.event.inputs.description }}" ]; then
+            cat >> description.txt << EOS
+
+          ----
+
+          ${{ github.event.inputs.description }}
+          EOS
+          fi
+
+      - name: Build zip
+        shell: bash
+        run: |
+          cp ./build_resources/README.txt ./README.txt
+          zip -r itvoice-${{ steps.version.outputs.version }}.zip ./README.txt ./itvoice.exe ./engine_data
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          prerelease: ${{ steps.version.outputs.preview }}
+          body_path: description.txt
+          files: |
+            vvproxy-*.zip

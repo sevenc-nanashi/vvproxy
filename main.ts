@@ -8,7 +8,7 @@ import {
   spawnProcess,
 } from "./deps.ts";
 
-const VERSION = "0.1.0";
+const VERSION = "0.0.0";
 
 const optionsSchema = z.record(
   z.object({
@@ -192,7 +192,7 @@ const run = async (
     try {
       if (path.startsWith("version")) {
         const data: string = JSON.parse(await body.text());
-        return new Response(JSON.stringify(data + "+" + VERSION), respOptions);
+        return new Response(JSON.stringify(data + "; vvproxy:" + VERSION), respOptions);
       } else {
         return new Response(body, respOptions);
       }
