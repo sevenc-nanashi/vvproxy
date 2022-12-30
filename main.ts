@@ -14,7 +14,7 @@ const optionsSchema = z.record(
   z.object({
     port: z.number(),
     base_port: z.number().optional(),
-    run_path: z.string(),
+    run_path: z.string().optional(),
     name: z.string(),
     argv: z.array(z.string()),
     gpu: z.boolean().optional(),
@@ -74,8 +74,25 @@ const run = async (
       const cmd = [runPath, `--port=${origPort}`, ...processArgv];
       console.log(`コマンド：${cmd.join(" ")}`);
 
-      spawnProcess(runPath, [`--port=${origPort}`, ...processArgv], {
-        cwd: runDir,
+      const engineProcess = spawnProcess(
+        runPath,
+        [`--port=${origPort}`, ...processArgv],
+        {
+          cwd: runDir,
+        }
+      );
+      Deno.addSignalListener("SIGINT", () => {
+        console.log(
+          `SIGINTを受け取りました。${option.name} のエンジン（PID：${engineProcess.pid}）を終了します。`
+        );
+        engineProcess.kill();
+        Deno.exit(0);
+      });
+      engineProcess.on("exit", (code) => {
+        console.log(
+          `${option.name} のエンジン（PID：${engineProcess.pid}）が終了しました。コード：${code}`
+        );
+        Deno.exit(code);
       });
       skipEngineWait = false;
     } catch (e) {
@@ -93,7 +110,11 @@ const run = async (
   });
 
   async function handler(req: Request): Promise<Response> {
-    const path = req.url.replace(/^http:\/\/.+:[0-9]+\//g, "");
+    let path = req.url.replace(/^http:\/\/.+:[0-9]+\//g, "");
+    if (path === "/downloadable_libraries") {
+      path = "/download_infos";
+    }
+
     let reqBody: ReadableStream | string | null = req.body;
     console.log(`${option.name}: ${req.method} ${path}`);
     if (reqBody && Deno.env.get("DEBUG")) {
@@ -192,7 +213,10 @@ const run = async (
     try {
       if (path.startsWith("version")) {
         const data: string = JSON.parse(await body.text());
-        return new Response(JSON.stringify(data + "; vvproxy:" + VERSION), respOptions);
+        return new Response(
+          JSON.stringify(data + "; vvproxy:" + VERSION),
+          respOptions
+        );
       } else {
         return new Response(body, respOptions);
       }
