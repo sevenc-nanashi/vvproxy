@@ -1,6 +1,7 @@
 {
   "manifest_version": "0.13.0",
   "name": "ITVOICE",
+  "brand_name": "ITVOICE",
   "uuid": "250eba4a-cb1e-4ec5-bd7c-a00409b045b5",
   "version": "999.999.999",
   "url": "http://itvoice.starfree.jp/",

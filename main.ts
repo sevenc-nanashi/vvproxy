@@ -18,8 +18,67 @@ const optionsSchema = z.record(
     name: z.string(),
     argv: z.array(z.string()),
     gpu: z.boolean().optional(),
+    force_restart: z.boolean().optional(),
   })
 );
+
+type CoeiroinkDownloadInfo = {
+  downloadable_model: {
+    download_path: string;
+    volume: string;
+    speaker: {
+      name: string;
+      speaker_uuid: string;
+      styles: {
+        name: string;
+        id: number;
+      }[];
+      version: string;
+    };
+    speaker_info: {
+      policy: string;
+      portrait: string;
+      style_infos: {
+        id: number;
+        name: string;
+        voice_samples: string[];
+      }[];
+    };
+  };
+  current_version: string;
+  character_exists: boolean;
+  latest_model_exists: boolean;
+};
+
+const coeiroinkDownloadInfosToDownloadableLibraries = (
+  infos: CoeiroinkDownloadInfo[]
+) =>
+  infos.map((info) => {
+    const volumeMatch =
+      info.downloadable_model.volume.match(/([\d.]+) ([GMK])/);
+    const bytes = volumeMatch
+      ? Number(volumeMatch[1]) *
+        (volumeMatch[2] === "G"
+          ? 1024 ** 3
+          : volumeMatch[2] === "M"
+          ? 1024 ** 2
+          : 1024)
+      : 0;
+    return {
+      name: info.downloadable_model.speaker.name,
+      uuid: info.downloadable_model.speaker.speaker_uuid,
+      version: info.downloadable_model.speaker.version,
+      download_url: info.downloadable_model.download_path,
+      bytes,
+
+      speakers: [
+        {
+          speaker: info.downloadable_model.speaker,
+          speaker_info: info.downloadable_model.speaker_info,
+        },
+      ],
+    };
+  });
 
 const filePathWithFallback = async (
   base: string,
@@ -45,6 +104,13 @@ const run = async (
   const origPort = option.base_port || option.port - 1;
   const assets = "./engine_data/" + key;
 
+  const kyClient = ky.create({
+    prefixUrl: `http://localhost:${origPort}`,
+    keepalive: true,
+    throwHttpErrors: false,
+    timeout: false,
+  });
+
   const corsPolicy = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "*",
@@ -57,57 +123,61 @@ const run = async (
     );
     skipEngineWait = true;
   } else {
-    try {
-      const runPath = import.meta
-        .resolve(option.run_path)
-        .replace(/^file:\/\/\/?/, "");
-      console.log(`${option.name} のエンジンを起動します。`);
-      const runDir = parsePath(runPath).dir;
-      console.log(`パス：${runPath}`);
-      console.log(`ディレクトリ：${runDir}`);
-      const processArgv = (option.argv || []).concat(argv);
-      if (option.gpu === true && !processArgv.includes("--use_gpu")) {
-        processArgv.push("--use_gpu");
-      } else if (option.gpu === false && processArgv.includes("--use_gpu")) {
-        processArgv.splice(processArgv.indexOf("--use_gpu"), 1);
-      }
-      const cmd = [runPath, `--port=${origPort}`, ...processArgv];
-      console.log(`コマンド：${cmd.join(" ")}`);
-
-      const engineProcess = spawnProcess(
-        runPath,
-        [`--port=${origPort}`, ...processArgv],
-        {
-          cwd: runDir,
-        }
+    const started = await kyClient
+      .get("version")
+      .then(() => true)
+      .catch(() => false);
+    if (started && !option.force_restart) {
+      console.log(
+        `${option.name} のエンジンは既に起動しています。起動をスキップします。`
       );
-      Deno.addSignalListener("SIGINT", () => {
-        console.log(
-          `SIGINTを受け取りました。${option.name} のエンジン（PID：${engineProcess.pid}）を終了します。`
+      skipEngineWait = true;
+    } else {
+      try {
+        const runPath = import.meta
+          .resolve(option.run_path)
+          .replace(/^file:\/\/\/?/, "");
+        console.log(`${option.name} のエンジンを起動します。`);
+        const runDir = parsePath(runPath).dir;
+        console.log(`パス：${runPath}`);
+        console.log(`ディレクトリ：${runDir}`);
+        const processArgv = (option.argv || []).concat(argv);
+        if (option.gpu === true && !processArgv.includes("--use_gpu")) {
+          processArgv.push("--use_gpu");
+        } else if (option.gpu === false && processArgv.includes("--use_gpu")) {
+          processArgv.splice(processArgv.indexOf("--use_gpu"), 1);
+        }
+        const cmd = [runPath, `--port=${origPort}`, ...processArgv];
+        console.log(`コマンド：${cmd.join(" ")}`);
+
+        const engineProcess = spawnProcess(
+          runPath,
+          [`--port=${origPort}`, ...processArgv],
+          {
+            cwd: runDir,
+          }
         );
-        engineProcess.kill();
-        Deno.exit(0);
-      });
-      engineProcess.on("exit", (code) => {
-        console.log(
-          `${option.name} のエンジン（PID：${engineProcess.pid}）が終了しました。コード：${code}`
-        );
-        Deno.exit(code);
-      });
-      skipEngineWait = false;
-    } catch (e) {
-      console.error(`${option.name} のエンジンの起動に失敗しました。`);
-      console.error(e);
-      Deno.exit(1);
+        Deno.addSignalListener("SIGINT", () => {
+          console.log(
+            `SIGINTを受け取りました。${option.name} のエンジン（PID：${engineProcess.pid}）を終了します。`
+          );
+          engineProcess.kill();
+          Deno.exit(0);
+        });
+        engineProcess.on("exit", (code) => {
+          console.log(
+            `${option.name} のエンジン（PID：${engineProcess.pid}）が終了しました。コード：${code}`
+          );
+          Deno.exit(code);
+        });
+        skipEngineWait = false;
+      } catch (e) {
+        console.error(`${option.name} のエンジンの起動に失敗しました。`);
+        console.error(e);
+        Deno.exit(1);
+      }
     }
   }
-
-  const kyClient = ky.create({
-    prefixUrl: `http://localhost:${origPort}`,
-    keepalive: true,
-    throwHttpErrors: false,
-    timeout: false,
-  });
 
   async function handler(req: Request): Promise<Response> {
     let path = req.url.replace(/^http:\/\/.+:[0-9]+\//g, "");
@@ -202,6 +272,44 @@ const run = async (
           "Content-Type": "application/json",
           ...corsPolicy,
         },
+      });
+    } else if (path.startsWith("downloadable_libraries")) {
+      const downloadInfos = await kyClient("download_infos").json();
+      if (!Array.isArray(downloadInfos))
+        throw new Error("assert: downloadInfos is not array");
+      return new Response(
+        JSON.stringify(
+          coeiroinkDownloadInfosToDownloadableLibraries(downloadInfos)
+        ),
+        {
+          headers: {
+            "content-type": "application/json",
+            ...corsPolicy,
+          },
+        }
+      );
+    } else if (path.startsWith("installed_libraries")) {
+      const downloadInfos = await kyClient("download_infos").json();
+      if (!Array.isArray(downloadInfos))
+        throw new Error("assert: downloadInfos is not array");
+      return new Response(
+        JSON.stringify(
+          coeiroinkDownloadInfosToDownloadableLibraries(
+            downloadInfos.filter((i) => i.latest_model_exists)
+          )
+        ),
+        {
+          headers: {
+            "content-type": "application/json",
+            ...corsPolicy,
+          },
+        }
+      );
+    }
+    if (resp.status === 204) {
+      return new Response(null, {
+        status: 204,
+        headers: Object.fromEntries([...resp.headers]),
       });
     }
     const body = await resp.blob();

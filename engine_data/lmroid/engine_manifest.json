@@ -1,6 +1,7 @@
 {
   "manifest_version": "0.13.0",
   "name": "Lmroid",
+  "brand_name": "LMROID",
   "uuid": "be2f077d-283d-4c81-8edf-bfca8f1866a0",
   "version": "999.999.999",
   "url": "https://lmroidsoftware.wixsite.com/nhoshio",

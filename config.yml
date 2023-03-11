@@ -1,6 +1,6 @@
 lmroid:
   port: 50073
-  orig_port: 50072
+  orig_port: 50000
   name: LMROID
   run_path: ../lmroid/run.exe
   argv: []
