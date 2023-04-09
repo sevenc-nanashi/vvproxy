@@ -6,6 +6,10 @@ import {
   parseYaml,
   parsePath,
   spawnProcess,
+  dirname,
+  fromFileUrl,
+  JSZip,
+  createWriteStream,
 } from "./deps.ts";
 
 const VERSION = "0.0.0";
@@ -155,6 +159,7 @@ const run = async (
           [`--port=${origPort}`, ...processArgv],
           {
             cwd: runDir,
+            stdio: "inherit",
           }
         );
         Deno.addSignalListener("SIGINT", () => {
@@ -168,7 +173,7 @@ const run = async (
           console.log(
             `${option.name} のエンジン（PID：${engineProcess.pid}）が終了しました。コード：${code}`
           );
-          Deno.exit(code);
+          Deno.exit(code!);
         });
         skipEngineWait = false;
       } catch (e) {
@@ -180,9 +185,100 @@ const run = async (
   }
 
   async function handler(req: Request): Promise<Response> {
-    let path = req.url.replace(/^http:\/\/.+:[0-9]+\//g, "");
-    if (path === "/downloadable_libraries") {
-      path = "/download_infos";
+    const path = req.url.replace(/^http:\/\/.+:[0-9]+\//g, "");
+    if (key === "coeiroink" && option.run_path) {
+      if (path.startsWith("downloadable_libraries")) {
+        const downloadInfos = await ky(
+          "https://coeiroink.com/api/v1/download-infos"
+        ).json();
+        if (!Array.isArray(downloadInfos))
+          throw new Error("assert: downloadInfos is not array");
+        return new Response(
+          JSON.stringify(
+            coeiroinkDownloadInfosToDownloadableLibraries(
+              downloadInfos.map((info) => ({
+                downloadable_model: info,
+              })) as unknown as CoeiroinkDownloadInfo[]
+            )
+          ),
+          {
+            headers: {
+              "content-type": "application/json",
+              ...corsPolicy,
+            },
+          }
+        );
+      } else if (path.startsWith("installed_libraries")) {
+        const downloadInfos = await kyClient("download_infos").json();
+        if (!Array.isArray(downloadInfos))
+          throw new Error("assert: downloadInfos is not array");
+        return new Response(
+          JSON.stringify(
+            coeiroinkDownloadInfosToDownloadableLibraries(
+              downloadInfos.filter((i) => i.latest_model_exists)
+            )
+          ),
+          {
+            headers: {
+              "content-type": "application/json",
+              ...corsPolicy,
+            },
+          }
+        );
+      } else if (path.startsWith("install_library")) {
+        const uuid = path.replace(/^install_library\//, "");
+
+        const tempFile = await Deno.makeTempFile();
+        const tempFileWriter = await Deno.open(tempFile, {
+          write: true,
+          create: true,
+        });
+        if (!req.body) throw new Error("assert: req.body is null");
+
+        await req.body.pipeTo(tempFileWriter.writable);
+
+        console.log(
+          `${option.name}: Install library ${uuid}, temp file: ${tempFile}`
+        );
+        const engineDir = dirname(
+          fromFileUrl(import.meta.resolve(option.run_path))
+        );
+
+        const baseDir = engineDir + "/speaker_info";
+        const zip = await JSZip.loadAsync(await Deno.readFile(tempFile));
+        for (const [path, file] of Object.entries(zip.files)) {
+          if (file.dir) {
+            const filePath = baseDir + "/" + path;
+            await Deno.mkdir(dirname(filePath), { recursive: true });
+          } else {
+            const filePath = baseDir + "/" + path;
+            const dir = dirname(filePath);
+            if (!(await Deno.stat(dir).catch(() => false))) {
+              await Deno.mkdir(dir, { recursive: true });
+            }
+            console.log(`Write file: ${filePath}`);
+            await new Promise<void>((resolve, reject) => {
+              file
+                .nodeStream()
+                .pipe(createWriteStream(filePath))
+                .on("finish", () => {
+                  resolve();
+                })
+                .on("error", (e) => {
+                  reject(e);
+                });
+            });
+          }
+        }
+        console.log("Install library done");
+
+        return new Response(null, {
+          headers: {
+            ...corsPolicy,
+          },
+          status: 204,
+        });
+      }
     }
 
     let reqBody: ReadableStream | string | null = req.body;
@@ -273,38 +369,6 @@ const run = async (
           ...corsPolicy,
         },
       });
-    } else if (path.startsWith("downloadable_libraries")) {
-      const downloadInfos = await kyClient("download_infos").json();
-      if (!Array.isArray(downloadInfos))
-        throw new Error("assert: downloadInfos is not array");
-      return new Response(
-        JSON.stringify(
-          coeiroinkDownloadInfosToDownloadableLibraries(downloadInfos)
-        ),
-        {
-          headers: {
-            "content-type": "application/json",
-            ...corsPolicy,
-          },
-        }
-      );
-    } else if (path.startsWith("installed_libraries")) {
-      const downloadInfos = await kyClient("download_infos").json();
-      if (!Array.isArray(downloadInfos))
-        throw new Error("assert: downloadInfos is not array");
-      return new Response(
-        JSON.stringify(
-          coeiroinkDownloadInfosToDownloadableLibraries(
-            downloadInfos.filter((i) => i.latest_model_exists)
-          )
-        ),
-        {
-          headers: {
-            "content-type": "application/json",
-            ...corsPolicy,
-          },
-        }
-      );
     }
     if (resp.status === 204) {
       return new Response(null, {
